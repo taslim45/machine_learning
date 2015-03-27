@@ -16,52 +16,33 @@ using namespace std;
 #define BENIGN 0
 #define MALIGNANT 1
 
-struct data{
-    vector <int> attributes[10];
-    data(){
-        for(int i=0; i<10; i++) attributes[i].clear();
-    }
-};
-data input,training,test;
-
+vector <int> inputs[10];
+vector <int> training_index;
+vector <int> test_index;
 int total_dataset,training_dataset,test_dataset;
-vector < pair<double,int> > Gain;
-int var_contribution[10][11][3];  // attribute - variable - positive/negative
+vector < pair <double,int> > Gain;
 
-struct TreeNode{
-    int decision;
-    bool isAttribute,isVariable;
-    vector <TreeNode> children;
-    int attribute,variable;
-    TreeNode(){
-        attribute = variable = decision = -1;
-        isAttribute = isVariable = false;
-        children.clear();
-    }
-};
-
-
+void clear_data()
+{
+    Gain.clear();
+    training_index.clear();
+    test_index.clear();
+}
 void init()
 {
+    clear_data();
     int inp[10];
     total_dataset = 0;
     int i,j;
+    for(i=0; i<10; i++) inputs[i].clear();
     while(scanf("%d%d%d%d%d%d%d%d%d%d",&inp[0],&inp[1],&inp[2],&inp[3],&inp[4],&inp[5],&inp[6],&inp[7],&inp[8],&inp[9])!=EOF)
     {
-        for(i=0; i<10; i++) input.attributes[i].push_back(inp[i]);
+        for(i=0; i<10; i++) inputs[i].push_back(inp[i]);
         total_dataset++;
     }
-    //printf("%d\n",cnt);
     training_dataset = 0;
-    for(i=0; i<0.8*total_dataset; i++)
-    {
-        for(j=0; j<10; j++) training.attributes[j].push_back(input.attributes[j][i]);
-        training_dataset++;
-    }
-    for(i=0.8*total_dataset; i<total_dataset; i++)
-    {
-        for(j=0; j<10; j++) test.attributes[j].push_back(input.attributes[j][i]);
-    }
+    for(i=0; i<total_dataset*0.8; i++) training_index.push_back(i),training_dataset++;
+    for(i=total_dataset*0.8; i<total_dataset; i++) test_index.push_back(i);
     test_dataset = total_dataset - training_dataset;
 }
 
@@ -74,100 +55,276 @@ double entropy(int positives,int negatives)
     return entro;
 }
 
-void calculate_gain(vector <int> attribs[])
+int _class(int index)
+{
+    return inputs[9][index];
+}
+
+void gain_calculator(vector <int> dataindex,int contribution[10][11][2],vector <int> seen)
 {
     Gain.clear();
     int i,j;
-    memset(var_contribution,0,sizeof(var_contribution));
-    for(i=0; i<9; i++)
+    int index,var,positives,negatives,total;
+    double attribEntropy,varEntropy;
+    vector <int> ::iterator it;
+    if(seen.size()>0)
     {
-        if(!attribute_check[i])
+        // selective
+        for(i=0; i<9; i++)
         {
-            int positives,negatives;
+            it = find(seen.begin(),seen.end(),i);
+            if(it!=seen.end()) continue;
             positives = negatives = 0;
-            for(j=0; j<training_dataset; j++)
+            for(j=0; j<dataindex.size(); j++)
             {
-                if(!instance_check[j])
+                index = dataindex[j];
+                var = inputs[i][index];
+                if(_class(index) == BENIGN)
                 {
-                    int val = training.attributes[i][j];    // val ranges between 1-10
-
-                    if(training.attributes[9][j] == BENIGN)
-                    {
-                        positives++;
-                        var_contribution[i][val][0] += 1;
-                    }
-                    else
-                    {
-                        negatives++;
-                        var_contribution[i][val][1] += 1;
-                    }
-                    if(training.attributes[9][j] == BENIGN)
-                    {
-                        positives++;
-                        var_contribution[i][val][0] += 1;
-                    }
-                    else
-                    {
-                        negatives++;
-                        var_contribution[i][val][1] += 1;
-                    }
+                    positives++;
+                    contribution[i][var][0]++;
+                }
+                else
+                {
+                    negatives++;
+                    contribution[i][var][1]++;
                 }
             }
-            int total = positives + negatives;
-            double attribEntropy = entropy(positives,negatives);
-            double varEntropy = 0.0;
+            attribEntropy = entropy(positives,negatives);
+            total = positives + negatives;
+            //printf("for %d total %d p%d n%d\n",i,total,positives,negatives);
+            varEntropy = 0.0;
             for(j=1; j<11; j++)
             {
-                // attribute values
-                positives = var_contribution[i][j][0];
-                negatives = var_contribution[i][j][1];
-                //printf("j%d p%d n%d\n",j,positives,negatives);
-                varEntropy += entropy(positives,negatives) * ((double)(positives+negatives) / total);
+                positives = contribution[i][j][0];
+                negatives = contribution[i][j][1];
+                int subtotal = positives + negatives;
+                //printf("total %d p%d n%d\n",subtotal,positives,negatives);
+                varEntropy += entropy(positives,negatives) * ((double)subtotal/total);
             }
             double gain = attribEntropy - varEntropy;
-            //printf("%0.2f %0.2f %0.2f\n",gain,attribEntropy,varEntropy);
+            Gain.push_back(make_pair(gain,i));
+        }
+    }
+    else
+    {
+        // calculate gain for all the attributes
+        for(i=0; i<9; i++)
+        {
+            positives = negatives = 0;
+            for(j=0; j<dataindex.size(); j++)
+            {
+                index = dataindex[j];
+                var = inputs[i][index];
+                if(_class(index) == BENIGN)
+                {
+                    positives++;
+                    contribution[i][var][0]++;
+                }
+                else
+                {
+                    negatives++;
+                    contribution[i][var][1]++;
+                }
+            }
+            attribEntropy = entropy(positives,negatives);
+            total = positives + negatives;
+            //printf("for %d total %d p%d n%d\n",i,total,positives,negatives);
+            varEntropy = 0.0;
+            for(j=1; j<11; j++)
+            {
+                positives = contribution[i][j][0];
+                negatives = contribution[i][j][1];
+                int subtotal = positives + negatives;
+                //printf("total %d p%d n%d\n",subtotal,positives,negatives);
+                varEntropy += entropy(positives,negatives) * ((double)subtotal/total);
+            }
+            double gain = attribEntropy - varEntropy;
             Gain.push_back(make_pair(gain,i));
         }
     }
 }
 
-
-bool gainsorter(pair<double,int> p1,pair<double,int> p2)
+bool sorter(pair<double,int> P1,pair<double,int> P2)
 {
-    return p1.first < p2.first;
+    return P1.first<P2.first;
 }
 void sort_gain()
 {
-    sort(Gain.begin(),Gain.end(),gainsorter);
-
+    sort(Gain.begin(),Gain.end(),sorter);
 }
 
-struct TreeStructure
+int getMostCommonValue()
 {
-    TreeNode tn;
-    vector <int> datasets[MAX];
-};
-stack <TreeStructure> tree;
+    int positives,negatives;
+    positives = negatives = 0;
+    for(int i=0; i<training_index.size(); i++)
+    {
+        int index = training_index[i];
+        if(inputs[9][index] == BENIGN) positives++;
+        else negatives++;
+    }
+    if(positives>negatives) return BENIGN;
+    return MALIGNANT;
+}
 
-void ID3(TreeNode root)
+struct TreeNode
 {
-    TreeStructure treeS;
+    bool isAttribute,isVariable;
+    int attribute,variable,decision;
+    vector <int> dataIndex;
+    vector <int> seenAttributes;
+    vector <TreeNode*> children;
+    int var_contribution[10][11][2];
+    TreeNode()
+    {
+        dataIndex.clear(),children.clear();
+        seenAttributes.clear();
+        isAttribute = isVariable = false;
+        attribute = variable = decision = -1;
+        memset(var_contribution,0,sizeof(var_contribution));
+    }
+};
+struct TreeElement
+{
+    TreeNode *elem;
+};
+
+stack <TreeElement> tree;
+
+void ID3(TreeNode &root)
+{
+    int i,j,positives,negatives;
     root.isAttribute = true;
-    treeS.tn = root;
-    treeS.datasets = training.attributes;
-    tree.push(treeS);
+    gain_calculator(root.dataIndex,root.var_contribution,root.seenAttributes);
+    /*for(i=0; i<10; i++)
+    {
+        for(j=1; j<11; j++)
+        {
+            for(int k=0; k<2; k++) printf("%d %d %d %d\n",i,j,k,root.var_contribution[i][j][k]);
+        }
+    }*/
+    sort_gain();
+    pair <double,int> highest_gain;
+    if(Gain.size()>0)
+    {
+        highest_gain = Gain.back();
+        root.attribute = highest_gain.second;
+        root.seenAttributes.push_back(root.attribute);
+    }
+    TreeElement telm;
+    telm.elem = &root;
+    tree.push(telm);
     while(tree.empty()==false)
     {
-        treeS = tree.top();
+        telm = tree.top();
         tree.pop();
-        calculate_gain(treeS.datasets);
-        sort_gain();
-        TreeNode current = treeS.tn;
-        if(Gain.size()>0)
+        TreeNode *node = telm.elem;
+        //printf("%d %d %d\n",node->attribute,node->variable,node->isAttribute);
+        if(node->isAttribute)
         {
-            pair<double,int> highest_gain = Gain.back();
-            current.
+            if(node->decision > -1) continue;
 
+            TreeNode child;
+            child.attribute = node->attribute;
+            child.isVariable = true;
+            for(i=1; i<=10; i++)
+            {
+                child.variable = i;
+                for(j=0; j<node->seenAttributes.size(); j++)
+                {
+                    int val = node->seenAttributes[j];
+                    child.seenAttributes.push_back(val);
+                }
+                positives = node->var_contribution[node->attribute][i][0];
+                negatives = node->var_contribution[node->attribute][i][1];
+                printf("%d %d\n",positives,negatives);
+                int sub_total = positives + negatives;
+                if(!sub_total)
+                {
+                    child.decision = getMostCommonValue();
+                }
+                else
+                {
+                    if(!positives)
+                    {
+                        child.decision = MALIGNANT;
+                    }
+                    else if(!negatives)
+                    {
+                        child.decision = BENIGN;
+                    }
+                    else
+                    {
+
+                        for(j=0; j<node->dataIndex.size(); j++)
+                        {
+                            int index = node->dataIndex[j];
+                            if(inputs[child.attribute][index] == i) child.dataIndex.push_back(index);
+                        }
+                        printf("index size %d\n",child.dataIndex.size());
+                    }
+                }
+                node->children.push_back(&child);
+                telm.elem = &child;
+                tree.push(telm);
+            }
+            printf("size %d\n",node->children.size());
+        }
+        else if(node->isVariable)
+        {
+            if(node->decision > -1) continue;
+            TreeNode child;
+            child.isAttribute = true;
+            for(j=0; j<node->seenAttributes.size(); j++)
+            {
+                int val = node->seenAttributes[j];
+                child.seenAttributes.push_back(val);
+            }
+            for(i=0; i<node->dataIndex.size(); i++)
+            {
+                int index = node->dataIndex[i];
+                child.dataIndex.push_back(index);
+            }
+            gain_calculator(child.dataIndex,child.var_contribution,child.seenAttributes);
+            sort_gain();
+            if(Gain.size()>0)
+            {
+                highest_gain = Gain.back();
+                child.attribute = highest_gain.second;
+                child.seenAttributes.push_back(child.attribute);
+            }
+            else
+            {
+                child.decision = getMostCommonValue();
+            }
+            node->children.push_back(&child);
+            telm.elem = &child;
+            tree.push(telm);
+        }
+    }
+}
+
+void print(TreeNode &node)
+{
+    queue <TreeNode*> q;
+    q.push(&node);
+    while(q.empty()==false)
+    {
+        TreeNode *nod = q.front();
+        q.pop();
+        if(nod->isAttribute)
+        {
+            printf("attribute %d\n",nod->attribute);
+            for(int i=0; i<nod->children.size(); i++)
+            {
+                q.push(nod->children[i]);
+            }
+        }
+        else
+        {
+            printf("variable %d decision %d\n",nod->variable,nod->decision);
+            if(nod->decision == -1) q.push(nod->children[0]);
         }
     }
 }
@@ -175,8 +332,14 @@ void ID3(TreeNode root)
 int main()
 {
     freopen("data.txt","r",stdin);
+    //freopen("output.txt","w",stdout);
     init();
     TreeNode root;
-
+    for(int i=0; i<training_dataset; i++)
+    {
+        root.dataIndex.push_back(training_index[i]);
+    }
+    ID3(root);
+    print(root);
     return 0;
 }
