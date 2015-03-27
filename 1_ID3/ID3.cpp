@@ -184,6 +184,15 @@ struct TreeNode
         attribute = variable = decision = -1;
         memset(var_contribution,0,sizeof(var_contribution));
     }
+    TreeNode(int attrib)
+    {
+        attribute = attrib;
+        dataIndex.clear(),children.clear();
+        seenAttributes.clear();
+        isAttribute = isVariable = false;
+        variable = decision = -1;
+        memset(var_contribution,0,sizeof(var_contribution));
+    }
 };
 struct TreeElement
 {
@@ -217,19 +226,18 @@ void ID3(TreeNode &root)
     tree.push(telm);
     while(tree.empty()==false)
     {
-        telm = tree.top();
+        TreeElement treeelm = tree.top();
         tree.pop();
-        TreeNode *node = telm.elem;
+        TreeNode *node = treeelm.elem;
         //printf("%d %d %d\n",node->attribute,node->variable,node->isAttribute);
         if(node->isAttribute)
         {
             if(node->decision > -1) continue;
-
-            TreeNode child;
-            child.attribute = node->attribute;
-            child.isVariable = true;
             for(i=1; i<=10; i++)
             {
+                TreeNode child(node->attribute);
+                //child.attribute = node->attribute;
+                child.isVariable = true;
                 child.variable = i;
                 for(j=0; j<node->seenAttributes.size(); j++)
                 {
@@ -266,8 +274,8 @@ void ID3(TreeNode &root)
                     }
                 }
                 node->children.push_back(&child);
-                telm.elem = &child;
-                tree.push(telm);
+                treeelm.elem = &child;
+                tree.push(treeelm);
             }
             printf("size %d\n",node->children.size());
         }
@@ -323,7 +331,7 @@ void print(TreeNode &node)
         }
         else
         {
-            printf("variable %d decision %d\n",nod->variable,nod->decision);
+            printf("variable %d attribute %d decision %d\n",nod->variable,nod->attribute,nod->decision);
             if(nod->decision == -1) q.push(nod->children[0]);
         }
     }
