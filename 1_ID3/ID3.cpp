@@ -25,23 +25,18 @@ struct data{
 data input,training,test;
 
 int total_dataset,training_dataset,test_dataset;
-int instance_check[MAX],attribute_check[10];
-int instance_used;
 vector < pair<double,int> > Gain;
 int var_contribution[10][11][3];  // attribute - variable - positive/negative
 
 struct TreeNode{
     int decision;
     bool isAttribute,isVariable;
-    TreeNode *children[10];
+    vector <TreeNode> children;
     int attribute,variable;
     TreeNode(){
         attribute = variable = decision = -1;
         isAttribute = isVariable = false;
-        for(int i=0; i<10; i++)
-        {
-            children[i] = NULL;
-        }
+        children.clear();
     }
 };
 
@@ -58,12 +53,12 @@ void init()
     }
     //printf("%d\n",cnt);
     training_dataset = 0;
-    for(i=0; i<0.8*total_dataset-1; i++)
+    for(i=0; i<0.8*total_dataset; i++)
     {
         for(j=0; j<10; j++) training.attributes[j].push_back(input.attributes[j][i]);
         training_dataset++;
     }
-    for(i=0.8*total_dataset-1; i<total_dataset; i++)
+    for(i=0.8*total_dataset; i<total_dataset; i++)
     {
         for(j=0; j<10; j++) test.attributes[j].push_back(input.attributes[j][i]);
     }
@@ -79,7 +74,7 @@ double entropy(int positives,int negatives)
     return entro;
 }
 
-void calculate_gain(int attribute,int variable)
+void calculate_gain(vector <int> attribs[])
 {
     Gain.clear();
     int i,j;
@@ -95,31 +90,26 @@ void calculate_gain(int attribute,int variable)
                 if(!instance_check[j])
                 {
                     int val = training.attributes[i][j];    // val ranges between 1-10
-                    if(attribute>-1 && training.attributes[attribute][j]==variable)
+
+                    if(training.attributes[9][j] == BENIGN)
                     {
-                        if(training.attributes[9][j] == BENIGN)
-                        {
-                            positives++;
-                            var_contribution[i][val][0] += 1;
-                        }
-                        else
-                        {
-                            negatives++;
-                            var_contribution[i][val][1] += 1;
-                        }
+                        positives++;
+                        var_contribution[i][val][0] += 1;
                     }
-                    else if(attribute == -1 && variable == -1)
+                    else
                     {
-                        if(training.attributes[9][j] == BENIGN)
-                        {
-                            positives++;
-                            var_contribution[i][val][0] += 1;
-                        }
-                        else
-                        {
-                            negatives++;
-                            var_contribution[i][val][1] += 1;
-                        }
+                        negatives++;
+                        var_contribution[i][val][1] += 1;
+                    }
+                    if(training.attributes[9][j] == BENIGN)
+                    {
+                        positives++;
+                        var_contribution[i][val][0] += 1;
+                    }
+                    else
+                    {
+                        negatives++;
+                        var_contribution[i][val][1] += 1;
                     }
                 }
             }
@@ -141,58 +131,43 @@ void calculate_gain(int attribute,int variable)
     }
 }
 
-void deleteData(int attribute,int variable)
-{
-    int i,j;
-    for(i=0; i<total_dataset-test_dataset; i++)
-    {
-        if(training.attributes[attribute][i] == variable) instance_check[i]++,training_dataset--;
-    }
-}
 
-bool gainsort(pair<double,int> p1,pair<double,int> p2)
+bool gainsorter(pair<double,int> p1,pair<double,int> p2)
 {
     return p1.first < p2.first;
 }
 void sort_gain()
 {
-    sort(Gain.begin(),Gain.end(),gainsort);
+    sort(Gain.begin(),Gain.end(),gainsorter);
 
 }
 
-void ID3(TreeNode *root)
+struct TreeStructure
 {
-    calculate_gain(root->attribute,root->variable);
-    sort_gain();
-    if(Gain.size()>0)
+    TreeNode tn;
+    vector <int> datasets[MAX];
+};
+stack <TreeStructure> tree;
+
+void ID3(TreeNode root)
+{
+    TreeStructure treeS;
+    root.isAttribute = true;
+    treeS.tn = root;
+    treeS.datasets = training.attributes;
+    tree.push(treeS);
+    while(tree.empty()==false)
     {
-        pair <double,int> current = Gain.back();
-        int attribute = current.second;
-        attribute_check[attribute]++;
-        if(root->attribute == -1) root->attribute = attribute;
-        root->isAttribute = true;
-        for(int i=1; i<11; i++)
+        treeS = tree.top();
+        tree.pop();
+        calculate_gain(treeS.datasets);
+        sort_gain();
+        TreeNode current = treeS.tn;
+        if(Gain.size()>0)
         {
-            TreeNode *node;
-            node->isVariable = true;
-            node->variable = i;
-            int positives = var_contribution[attribute][i][0];
-            int negatives = var_contribution[attribute][i][1];
-            if(positives+negatives > 0)
-            {
-                if(!positives)
-                {
-                    node->decision = MALIGNANT;
-                    deleteData(attribute,i);
-                }
-                else if(!negatives)
-                {
-                    node->decision = BENIGN;
-                    deleteData(attribute,i);
-                }
-            }
-            root->children[i] = node;
-            ID3(root->children[i]);
+            pair<double,int> highest_gain = Gain.back();
+            current.
+
         }
     }
 }
@@ -201,7 +176,7 @@ int main()
 {
     freopen("data.txt","r",stdin);
     init();
-    TreeNode *root;
-    ID3(root);
+    TreeNode root;
+
     return 0;
 }
