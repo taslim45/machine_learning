@@ -13,3 +13,6 @@ Attributes:
 8. normal nucleoli
 9. mitoses
 10. class (0 for benign, 1 for malignant)
+
+##############################################
+Output.txt shows the output of 100 runs on test data. On each run the test data set is randomly selected.
