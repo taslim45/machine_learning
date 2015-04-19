@@ -2,13 +2,13 @@ package document.models;
 
 public class Topics {
 	
-	public static String TABLE_NAME = "topics";
+	public static final String TABLE_NAME = "topics";
 	
-	public static String ID = "_id";
-	public long id;
+	public static final String ID = "_id";
+	long id;
 	
-	public static String NAME = "name";
-	public String name;
+	public static final String NAME = "name";
+	String name;
 	
 	public Topics() {}
 	public Topics(long id, String name) {
