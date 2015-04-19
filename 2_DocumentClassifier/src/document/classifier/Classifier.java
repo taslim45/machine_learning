@@ -16,7 +16,32 @@ public class Classifier {
 	 */
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
+		clearDatabase();
 		readTopics();
+		readTrainingData();
+	}
+	
+	private static void clearDatabase()
+	{
+		Statement stmt = null;
+		Connection c = DBConnection.getConnection();
+		try {
+			c.setAutoCommit(false);
+			stmt = c.createStatement();
+			String sql1 = "DELETE FROM " + Topics.TABLE_NAME;
+			stmt.executeUpdate(sql1);
+			stmt.close();
+			c.commit();
+			if(c!=null) 
+			{
+				c.setAutoCommit(true);
+				c.close();
+			}
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 	}
 	
 	private static void readTopics()
@@ -49,5 +74,10 @@ public class Classifier {
 			e.printStackTrace();
 		}
 		System.out.println("Done");
+	}
+	
+	private static void readTrainingData()
+	{
+		
 	}
 }
