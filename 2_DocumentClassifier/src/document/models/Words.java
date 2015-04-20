@@ -1,5 +1,9 @@
 package document.models;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
 public class Words {
 
 	public static final String TABLE_NAME = "words";
@@ -58,4 +62,27 @@ public class Words {
 		this.document_id = document_id;
 	}
 	
+	public static long insert(Connection con, String word,long topicid,long documentid)
+	{
+		StringBuilder queryBuilder = new StringBuilder();
+		queryBuilder.append("INSERT INTO ").append(TABLE_NAME);
+		queryBuilder.append(" (").append(WORD).append(",");
+		queryBuilder.append(TOPIC_ID).append(",").append(DOCUMENT_ID).append(") ");
+		queryBuilder.append("VALUES ").append("(?,?,?)");
+	
+		try {
+			PreparedStatement preparedStatement = con.prepareStatement(queryBuilder.toString());
+			queryBuilder.setLength(0);
+			preparedStatement.setString(1, word);
+			preparedStatement.setLong(2, topicid);
+			preparedStatement.setLong(3, documentid);
+			long res = preparedStatement .executeUpdate();
+			return res;
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		return -1;
+	}
 }

@@ -1,9 +1,7 @@
 package document.classifier;
+
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -11,9 +9,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import utils.WordUtils;
+
 import document.database.*;
 import document.models.Documents;
 import document.models.Topics;
+import document.models.Words;
 
 public class Classifier {
 
@@ -76,6 +77,7 @@ public class Classifier {
 				String sql = sqlBuilder.toString();
 				stmt.executeUpdate(sql);
 				stmt.close();
+				sqlBuilder.setLength(0);
 			}
 			c.commit();
 			if(c!=null) {
@@ -93,25 +95,23 @@ public class Classifier {
 		Statement stmt = null;
 		Connection c = DBConnection.getConnection();
 		PreparedStatement pstmt = null;
-		File file = new File("out.txt");
 		
 		try (BufferedReader br = new BufferedReader(new FileReader("training.data")))
 		{
-			if (!file.exists()) {
-				file.createNewFile();
-			}
 			String sCurrentLine;
 			c.setAutoCommit(false);
 			boolean isTopic,isTitle,isLocation,isStory,blankAfterTitle,blankAfterStory;
 			isTopic = isTitle = isLocation = isStory = blankAfterTitle = false;
 			blankAfterStory = true;
 			int countBlanks = 0;
-			
-			FileWriter fw = new FileWriter(file.getAbsoluteFile());
-			BufferedWriter bw = new BufferedWriter(fw);
+			String[] currLine;
+			long documentid = -1;
+			long topicid = -1;
+			int len;
 			while ((sCurrentLine = br.readLine()) != null) 
 			{
-				int len = sCurrentLine.length();
+				len = sCurrentLine.length();
+				
 				//System.out.println(sCurrentLine);
 				if(sCurrentLine.isEmpty())
 				{
@@ -126,22 +126,19 @@ public class Classifier {
 				}
 				else
 				{
-					String[] currLine = splitLine(sCurrentLine);
+					currLine = splitLine(sCurrentLine);
 					countBlanks = 0;
 					if(currLine.length == 1 && !isTopic && blankAfterStory)
 					{
-						bw.write(sCurrentLine + ", ");
-						
 						isTopic = true;
 						blankAfterStory = blankAfterTitle = false;
-						long topicid = -1;
-						long documentid = -1;
 						//stmt = c.createStatement();
 						
 						StringBuilder sqlBuilder = new StringBuilder();
 						sqlBuilder.append("SELECT * FROM ").append(Topics.TABLE_NAME);
 						sqlBuilder.append(" WHERE ").append(Topics.NAME).append("=?");
 						String sql = sqlBuilder.toString();
+						sqlBuilder.setLength(0);
 						pstmt = c.prepareStatement(sql);
 						pstmt.setString(1, sCurrentLine);
 						ResultSet rs = pstmt.executeQuery();
@@ -164,11 +161,29 @@ public class Classifier {
 						
 						long wow = stmt.executeUpdate(sql);
 						stmt.close();
+						if(wow > 0)
+						{
+							stmt = c.createStatement();
+							rs = stmt.executeQuery("SELECT last_insert_rowid()");
+							while(rs.next())
+							{
+								documentid = rs.getLong(1);
+								break;
+							}
+							rs.close();
+							stmt.close();
+						}
 						//System.out.println(wow);
 					}
 					else if(sCurrentLine.charAt(len - 1) == '-' && !isLocation)
 					{
 						isLocation = true;
+						for (String word : currLine) 
+						{
+							String modified = WordUtils.cleanWord(word.toLowerCase().trim());
+							if(modified.isEmpty()) continue;
+							Words.insert(c, modified, topicid, documentid);
+						}
 					}
 					else
 					{
@@ -176,43 +191,30 @@ public class Classifier {
 						{
 							// still getting title
 							isTitle = true;
+							for (String word : currLine) 
+							{
+								String modified = WordUtils.cleanWord(word.toLowerCase().trim());
+								if(modified.isEmpty()) continue;
+								//Words.insert(c, modified, topicid, documentid);
+							}
 						}
 						else
 						{
 							// it must be story
 							isStory = true;
+							for (String word : currLine) 
+							{
+								String modified = WordUtils.cleanWord(word.toLowerCase().trim());
+								if(modified.isEmpty()) continue;
+								//Words.insert(c, modified, topicid, documentid);
+							}
 						}
 					}
 				}
-				if(!isTopic)
-				{
-					
-				}
-				else if(!isTitle)
-				{
-					isTitle = true;
-				}
-				else if(!isLocation)
-				{
-					isLocation = true;
-				}
-				else if(!isStory)
-				{
-					isStory = true;
-				}
-				/*
-				stmt = c.createStatement();
-				StringBuilder sqlBuilder = new StringBuilder();
-				
-				
-				String sql = sqlBuilder.toString();
-				stmt.executeUpdate(sql);
-				stmt.close();*/
+
 			}
 			
 			c.commit();
-			bw.close();
-			fw.close();
 			if(c!=null) {
 				c.setAutoCommit(true); 
 				c.close();
