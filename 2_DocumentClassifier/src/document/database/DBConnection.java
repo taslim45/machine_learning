@@ -9,7 +9,7 @@ public class DBConnection {
 	{
 	    try {
 	    	Class.forName("org.sqlite.JDBC");
-	    	con = DriverManager.getConnection("jdbc:sqlite:doc_db.db");
+	    	con = DriverManager.getConnection("jdbc:sqlite:E:\\CSE 4-2\\CSE 472 Machine Learning Sessional\\doc_db.db");
 	    } catch ( Exception e ) {
 	    	System.err.println( e.getClass().getName() + ": " + e.getMessage() );
 	      	System.exit(0);

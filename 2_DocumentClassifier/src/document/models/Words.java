@@ -2,7 +2,10 @@ package document.models;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import document.database.DBConnection;
 
 public class Words {
 
@@ -84,5 +87,55 @@ public class Words {
 		}
 		
 		return -1;
+	}
+	
+	public static int getWordFrequencyByTopic(Connection c,String word,int topic)
+	{
+		int count = 0;
+		String sql = "SELECT COUNT(" + WORD + ") FROM " + TABLE_NAME + " WHERE " + WORD + "=? AND " + TOPIC_ID + "=?";
+		try
+		{
+			PreparedStatement pst = c.prepareStatement(sql);
+			pst.setString(1, word);
+			pst.setInt(2, topic);
+			ResultSet rs = pst.executeQuery();
+			while(rs.next())
+			{
+				count = rs.getInt(1);
+				break;
+			}
+			rs.close();
+			pst.close();
+		}
+		catch(SQLException ex)
+		{
+			ex.printStackTrace();
+		}
+		return count;
+	}
+	
+	public static int getWordCountByTopic(Connection c , int topic)
+	{
+		int count = 0;
+		String sql = "SELECT COUNT(" + WORD + ") FROM " + TABLE_NAME + " WHERE " + TOPIC_ID + "=?";
+		try
+		{
+			PreparedStatement pst = c.prepareStatement(sql);
+			pst.setInt(1, topic);
+			ResultSet rs = pst.executeQuery();
+			while(rs.next())
+			{
+				count = rs.getInt(1);
+				break;
+			}
+			rs.close();
+			pst.close();
+	
+		}
+		catch(SQLException ex)
+		{
+			ex.printStackTrace();
+		}
+		return count;
 	}
 }
