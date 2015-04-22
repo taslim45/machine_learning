@@ -289,9 +289,9 @@ public class Classifier {
 							 * take decision on previous test document
 							 */
 							//System.out.println("Before classification");
-							classify(c , givenTopic);
+							//classify(c , givenTopic);
 							givenTopic = sCurrentLine;
-							clearDatabase(c);
+							//clearDatabase(c);
 							//System.out.println(sCurrentLine);
 						}
 						else
@@ -352,7 +352,11 @@ public class Classifier {
 				}
 
 			}
-
+			c.commit();
+			if(c!=null) {
+				c.setAutoCommit(true); 
+				c.close();
+			}
 		} catch (IOException | SQLException e) {
 			e.printStackTrace();
 		}
