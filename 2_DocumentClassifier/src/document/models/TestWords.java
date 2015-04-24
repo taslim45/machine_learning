@@ -18,20 +18,27 @@ public static final String TABLE_NAME = "test_words";
 	public static final String WORD = "word";
 	String word;
 	
-	public static final String IS_CHECKED = "is_checked";
-	int is_checked;
+	public static final String TOPIC_ID = "topic_id";
+	long topic_id;
+	
+	public static final String DOCUMENT_ID = "document_id";
+	long document_id;
+	
 	
 	public static long insert(Connection con,String word,long topicid,long documentid)
 	{
 		StringBuilder queryBuilder = new StringBuilder();
 		queryBuilder.append("INSERT INTO ").append(TABLE_NAME);
-		queryBuilder.append(" (").append(WORD).append(")");
-		queryBuilder.append("VALUES ").append("(?)");
+		queryBuilder.append(" (").append(WORD).append(",");
+		queryBuilder.append(TOPIC_ID).append(",").append(DOCUMENT_ID).append(") ");
+		queryBuilder.append("VALUES ").append("(?,?,?)");
 	
 		try {
 			PreparedStatement preparedStatement = con.prepareStatement(queryBuilder.toString());
 			queryBuilder.setLength(0);
 			preparedStatement.setString(1, word);
+			preparedStatement.setLong(2, topicid);
+			preparedStatement.setLong(3, documentid);
 			long res = preparedStatement .executeUpdate();
 			return res;
 		} catch (SQLException e) {
@@ -41,41 +48,17 @@ public static final String TABLE_NAME = "test_words";
 	
 		return -1;
 	}
-
-	public static String getNextWord(Connection c)
-	{
-		String sql = "SELECT " + WORD + " FROM " + TABLE_NAME + " WHERE " + IS_CHECKED + "=? LIMIT 1";
-		String word = "";
-		PreparedStatement pstmt = null;
-		try
-		{
-			pstmt = c.prepareStatement(sql);
-			pstmt.setInt(1, 0);
-			ResultSet rs = pstmt.executeQuery();
-			while(rs.next())
-			{
-				word = rs.getString(1);
-				break;
-			}
-			rs.close();
-			pstmt.close();
-		}
-		catch(SQLException ex)
-		{
-			ex.printStackTrace();
-		}
-		return word;
-	}
 	
-	public static int getFrequency(Connection c , String word)
+	public static int getFrequency(Connection c , String word, long documentid)
 	{
 		int count = 0;
-		String sql = "SELECT COUNT("+ WORD +") FROM " + TABLE_NAME + " WHERE " + WORD + "=?";
+		String sql = "SELECT COUNT("+ WORD +") FROM " + TABLE_NAME + " WHERE " + WORD + "=? AND " + DOCUMENT_ID + "=?";
 		PreparedStatement pstmt = null;
 		try
 		{
 			pstmt = c.prepareStatement(sql);
 			pstmt.setString(1, word);
+			pstmt.setLong(2, documentid);
 			ResultSet rs = pstmt.executeQuery();
 			while(rs.next())
 			{
@@ -93,38 +76,16 @@ public static final String TABLE_NAME = "test_words";
 		return count;
 	}
 	
-	public static void markWordAsChecked(Connection c,String word)
-	{
-		String sql = "UPDATE " + TABLE_NAME + " SET " + IS_CHECKED + "=? WHERE " + WORD + "=? AND " + IS_CHECKED + "=?";
-		PreparedStatement pstmt = null;
-		try
-		{
-			int count = 1;
-			while(count>0)
-			{
-				pstmt = c.prepareStatement(sql);
-				pstmt.setInt(1, 1);
-				pstmt.setString(2, word);
-				pstmt.setInt(3, 0);
-				count = pstmt.executeUpdate();
-				pstmt.close();
-			}
-		}
-		catch(SQLException ex)
-		{
-			ex.printStackTrace();
-		}
 	
-	}
-	
-	public static ArrayList<String> getDistinctWords(Connection c)
+	public static ArrayList<String> getDistinctWords(Connection c,long documentid)
 	{
-		String sql = "SELECT DISTINCT(" + WORD + ") FROM " + TABLE_NAME;
+		String sql = "SELECT DISTINCT(" + WORD + ") FROM " + TABLE_NAME + " WHERE " + DOCUMENT_ID + "=?";
 		ArrayList<String> words = new ArrayList<String>();
 		PreparedStatement pstmt = null;
 		try
 		{
 			pstmt = c.prepareStatement(sql);
+			pstmt.setLong(1, documentid);
 			ResultSet rs = pstmt.executeQuery();
 			
 			while(rs.next())

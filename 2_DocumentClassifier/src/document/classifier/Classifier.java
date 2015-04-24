@@ -14,6 +14,7 @@ import utils.WordUtils;
 
 import document.database.*;
 import document.models.Documents;
+import document.models.TestDocuments;
 import document.models.TestWords;
 import document.models.Topics;
 import document.models.Words;
@@ -32,12 +33,38 @@ public class Classifier {
 		 */
 		//readTopics();
 		//readTrainingData();
-		
+		//createIndex(Words.TABLE_NAME);
 		/*
 		 * on the fly
 		 */
 		calculatePosteriors();
-		readTestData();
+		//readTestData();
+		//createIndex(TestWords.TABLE_NAME);
+		classifyDocuments();
+	}
+	
+	private static void createIndex(String tableName)
+	{
+		Statement stmt = null;
+		Connection c = DBConnection.getConnection();
+		try
+		{
+			c.setAutoCommit(false);
+			String sql = "CREATE INDEX " + tableName + "_index ON " + tableName + " (word)";
+			stmt = c.createStatement();
+			stmt.executeUpdate(sql);
+			stmt.close();
+			c.commit();
+			if(c!=null) {
+				c.setAutoCommit(true); 
+				c.close();
+			}
+		}
+		catch(SQLException ex)
+		{
+			ex.printStackTrace();
+		}
+		System.out.println("Done creating index");
 	}
 	
 	private static void calculatePosteriors()
@@ -257,7 +284,8 @@ public class Classifier {
 			long documentid = -1;
 			long topicid = -1;
 			int len;
-			String givenTopic = "";
+			Statement stmt = null;
+			PreparedStatement pstmt = null;
 			while ((sCurrentLine = br.readLine()) != null) 
 			{
 				len = sCurrentLine.length();
@@ -282,26 +310,45 @@ public class Classifier {
 					{
 						isTopic = true;
 						blankAfterStory = blankAfterTitle = false;
-						
-						if(!givenTopic.isEmpty())
+						StringBuilder sqlBuilder = new StringBuilder();
+						sqlBuilder.append("SELECT * FROM ").append(Topics.TABLE_NAME);
+						sqlBuilder.append(" WHERE ").append(Topics.NAME).append("=?");
+						String sql = sqlBuilder.toString();
+						sqlBuilder.setLength(0);
+						pstmt = c.prepareStatement(sql);
+						pstmt.setString(1, sCurrentLine);
+						ResultSet rs = pstmt.executeQuery();
+						//stmt.close();
+						while(rs.next())
 						{
-							/*
-							 * take decision on previous test document
-							 */
-							//System.out.println("Before classification");
-							//classify(c , givenTopic);
-							givenTopic = sCurrentLine;
-							//clearDatabase(c);
-							//System.out.println(sCurrentLine);
+							topicid = rs.getLong(Topics.ID);
+							break;
 						}
-						else
-						{
-							/*
-							 * this is the first document
-							 */
-							givenTopic = sCurrentLine;
-						}
+						rs.close();
+						pstmt.close();
 						
+						stmt = c.createStatement();
+						sqlBuilder.setLength(0);
+						sqlBuilder.append("INSERT INTO ").append(TestDocuments.TABLE_NAME);
+						sqlBuilder.append(" (").append(TestDocuments.TOPICS_ID).append(")");
+						sqlBuilder.append(" VALUES ");
+						sqlBuilder.append("(").append(topicid).append(")");
+						sql = sqlBuilder.toString();
+						
+						long wow = stmt.executeUpdate(sql);
+						stmt.close();
+						if(wow > 0)
+						{
+							stmt = c.createStatement();
+							rs = stmt.executeQuery("SELECT last_insert_rowid()");
+							while(rs.next())
+							{
+								documentid = rs.getLong(1);
+								break;
+							}
+							rs.close();
+							stmt.close();
+						}
 					}
 					else if(sCurrentLine.charAt(len - 1) == '-' && !isLocation)
 					{
@@ -368,7 +415,7 @@ public class Classifier {
 		String[] splitStr = line.split("\\s+");
 		return splitStr;
 	}
-	
+	/*
 	private static void classify(Connection c,String topic)
 	{
 		double max = 0.0;
@@ -412,5 +459,65 @@ public class Classifier {
 			System.out.println("Given:"+topic + " decision:"+whichTopic);
 			break;
 		}
+	}*/
+	
+	private static void classifyDocuments()
+	{
+		Connection c = DBConnection.getConnection();
+		ArrayList<Long> documents = TestDocuments.getAllDocuments(c);
+		int i,j,k;
+		long givenTopicid;
+		int matches = 0;
+		int totaldocs = documents.size();
+		for(i=111; i<=120; i++)
+		{
+			System.out.println(i);
+			givenTopicid = documents.get(i-1);
+			ArrayList<String> wordsInDocument = TestWords.getDistinctWords(c,i);
+			double max = 0.0;
+			double value = 0.0;
+			double probability;
+			int wordCountByTopic,wordFrequencyByTopic;
+			int decidedTopic = -1;
+			for(j=1; j<=PosteriorCalculation.getTotalTopics(); j++)
+			{
+				value = 1.0;
+				value *= PosteriorCalculation.getTopicProbability(j);
+				if(value == 0.0) continue;
+				value = Math.log(value) * -1;
+				wordCountByTopic = Words.getWordCountByTopic(c , j);
+				
+				for (String word : wordsInDocument) {
+					
+					wordFrequencyByTopic = Words.getWordFrequencyByTopic(c , word, j);
+					
+					probability = (double)(wordFrequencyByTopic+1) / (wordCountByTopic + PosteriorCalculation.getTotalVocabulary());
+					probability = Math.log(probability) * -1;
+					//System.out.println(probability);
+					int frequencyInTestDoc = TestWords.getFrequency(c , word, j);
+					value *= Math.pow(probability, frequencyInTestDoc);
+				}
+				
+				if(Double.compare(value, max)>0)
+				{
+					max = value;
+					decidedTopic = j;
+				}
+			}
+			if(givenTopicid == decidedTopic)
+			{
+				matches++;
+				System.out.println("Document "+ i + " matches");
+			}
+		}
+		if(c!=null)
+			try {
+				c.close();
+			} catch (SQLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		System.out.println("Accuracy "+(matches/totaldocs));
 	}
+	
 }

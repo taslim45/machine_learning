@@ -36,8 +36,6 @@ public class WordUtils {
 		prepostions.add("of");
 		prepostions.add("off");
 		prepostions.add("on");
-		prepostions.add("out");
-		prepostions.add("since");
 		prepostions.add("so");
 		prepostions.add("some");
 		prepostions.add("though");
