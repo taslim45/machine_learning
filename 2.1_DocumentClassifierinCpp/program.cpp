@@ -10,8 +10,10 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <set>
 using namespace std;
 #define MAXTOPICS 150
+#define SMOOTHING 1
 
 map <string,int> Vocab;
 map <string,int> topics;
@@ -22,20 +24,37 @@ vector <string> reverseTopics;
 int ndocs = 0;
 int wordTopicCount[MAXTOPICS];
 int topicCount[MAXTOPICS];
+set <string> ignorables;
+set <string>::iterator sit;
 
 vector<string> split(string s)
 {
+    char delim[20];
+    int i,j;
+    for(i=0,j=48; j<58; j++,i++)
+    {
+        delim[i] = j;
+    }
+    delim[i] = '"';
+    delim[++i] = ' ';
+    delim[++i] = ',';
+    delim[++i] = '.';
+    delim[++i] = '-';
+    delim[++i] = ';';
+    delim[++i] = '&';
+    delim[++i] = '\0';
+
     int len = s.size();
     char str[len+1];
     strcpy(str,s.c_str());
     char *pch;
-    pch = strtok (str," \",.-;");
+    pch = strtok (str,delim);             //   " \",.-;&");
     vector <string> vs;
 
     while(pch!=NULL)
     {
         vs.push_back(pch);
-        pch = strtok (NULL, " \",.-;");
+        pch = strtok (NULL, delim);
     }
     return vs;
 }
@@ -85,37 +104,26 @@ void read_training()
             for(k=0; k<words.size(); k++)
             {
                 string _word = words[k];
-                if(_word.size()>0)
+                std::transform(_word.begin(),_word.end(),_word.begin(),::tolower);
+                sit = ignorables.find(_word);
+                if(_word.size()>0 && sit==ignorables.end())
                 {
-                    int pos = _word.find("&lt");
-                    int mpos = _word.find("&gt");
-                    if(pos!=string::npos && mpos!=string::npos)
-                    {
-                        string w = _word.substr(pos+3,mpos - pos - 3);
-                        Vocab[w]++;
-                        bags[tp][w]++;
-                        wordTopicCount[tp]++;
-                    }
-                    else
-                    {
-                        Vocab[_word]++;
-                        bags[tp][_word]++;
-                        wordTopicCount[tp]++;
-                    }
+                    Vocab[_word]++;
+                    bags[tp][_word]++;
+                    wordTopicCount[tp]++;
 
                 }
-                //cout<<_word<<"\n";
             }
         }
         gets(text);
     }
-    //puts("end of preprocess");
     fclose(stdin);
 }
 void read_test()
 {
     freopen("test.data", "r", stdin);
     int ntest = 0, match = 0;
+    int withoutblanks = 0;
     int tp,ftp,i;
     char *str;
     vector < pair < double , int > > V;
@@ -137,35 +145,26 @@ void read_test()
             for(int k=0; k<words.size(); k++)
             {
                 string word = words[k];
-                if(word.size()>0)
+                std::transform(word.begin(),word.end(),word.begin(),::tolower);
+                sit = ignorables.find(word);
+                if(word.size()>0 && sit==ignorables.end())
                 {
-                    int pos = word.find("&lt");
-                    int mpos = word.find("&gt");
-                    if(pos!=string::npos && mpos!=string::npos)
-                    {
-                        string w = word.substr(pos+3,mpos - pos - 3);
-                        trainWords[w]++;
-                    }
-                    else
-                    {
-                        trainWords[word]++;
-                    }
-
+                    trainWords[word]++;
                 }
             }
         }
         gets(text);
         if(trainWords.size()>0)
         {
-            double maxi = 0.0;
+            withoutblanks++;
             double val = 0.0;
-            int ftp = -1;
+            int res = -1;
             vector < pair <double,int> > results;
             for(int k=1; k<=topics.size(); k++)
             {
                 string topicname = reverseTopics[k];
                 int topicFrequency = topicCount[k];
-                if(!topicFrequency) continue;
+                //if(!topicFrequency) continue;
                 val = log(topicFrequency /(double) ndocs)*-1;
                 //printf("%f\n",val);
                 int totalWordInTopicK = wordTopicCount[k];
@@ -177,8 +176,8 @@ void read_test()
                     int frequency = it->second;
                     nit = bags[k].find(word);
                     int wordInTopicK;
-                    if(nit!=bags[k].end()) wordInTopicK = bags[k][word] + 1;
-                    else wordInTopicK = 1;
+                    if(nit!=bags[k].end()) wordInTopicK = bags[k][word] + SMOOTHING;
+                    else wordInTopicK = SMOOTHING;
                     double probability = log(wordInTopicK / (double)(totalWordInTopicK + Vocab.size())) * -1;
                     //cout<<val<<" before\n";
                     val *= pow(probability,(double)frequency);
@@ -189,17 +188,38 @@ void read_test()
                 results.push_back(make_pair(val,k));
             }
             sort(results.begin(),results.end());
-            ftp = results.front().second;
-            match += (tp == ftp);
+            res = results.front().second;
+            match += (tp == res);
         }
     }
-    printf("total = %d, match = %d\n", ntest, match);
-    printf("Accuracy %f \%\n",match*100/(double)ntest);
+    printf("total = %d, without blanks=%d, match = %d\n", ntest,withoutblanks, match);
+    //printf("Accuracy %f \%\n",match*100/(double)ntest);
+    printf("Accuracy %f \%\n",match*100/(double)withoutblanks);
     fclose(stdin);
 }
-
+void prep_ignorables()
+{
+    ignorables.insert("a");
+    ignorables.insert("an");
+    ignorables.insert("and");
+    ignorables.insert("the");
+    ignorables.insert("in");
+    ignorables.insert("of");
+    ignorables.insert("off");
+    ignorables.insert("on");
+    ignorables.insert("by");
+    ignorables.insert("be");
+    ignorables.insert("is");
+    ignorables.insert("are");
+    ignorables.insert("was");
+    ignorables.insert("were");
+    ignorables.insert("to");
+    ignorables.insert("at");
+    ignorables.insert("with");
+}
 int main()
 {
+    prep_ignorables();
     read_topics();
     read_training();
     read_test();
